@@ -32,6 +32,7 @@ There are two ways to store data to the Datafile using the addData() function
 
 1. Using a Tuple:  
    Pros: **Quick**, **Easy**
+   
    Cons: **Must follow format of Index** (when the index is e.g:
    `index=('id', 'name', 'password')` this order must be followed in the tuple). (in big project this can be a hassle to change once the index is reordered)
 
