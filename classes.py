@@ -1,5 +1,7 @@
 import random
 import string
+import tkinter
+from tkinter import ttk
 
 class Database(object):
 	"""docstring for Database"""
@@ -76,7 +78,7 @@ class Database(object):
 
 	def addData(self, newData):
 		
-		# Checking if the provided data has the same amount of fields
+		# Checking if the provided data has the same amount of fields (is indext the same)
 		if len(self.index) != len(newData):
 			raise Exception('Index and the new data dont have the same length')
 		
@@ -162,3 +164,57 @@ class Database(object):
 			self.refreshData()
 		else:
 			raise Exception('ID not found')
+
+class TkinterInterface(object):
+	def __init__(self, databaseTitle, index, database):
+
+		self.databaseTitle = databaseTitle
+		
+		self.index = index
+		formattedIndex = tuple(item.capitalize() for item in self.index)
+
+		self.window = tkinter.Tk()
+		self.window.title(databaseTitle)
+		SCREEN_WIDTH = self.window.winfo_screenwidth()
+		SCREEN_HEIGHT = self.window.winfo_screenheight()
+		self.window.geometry(f"{round(SCREEN_WIDTH/1.5)}x{round(SCREEN_HEIGHT/2)}")
+
+		# Database innit
+		self.database = database
+		self.database.refreshData()
+
+		''' < Loading the tree widget > '''
+
+		self.sheet = ttk.Treeview(self.window, columns=formattedIndex, show="headings", selectmode="extended", name="dataTreeview")
+
+		for columnNum, column in enumerate(formattedIndex):
+			self.sheet.heading(f"#{columnNum+1}", text=column)
+
+		#self.sheet.heading(f"#{len(self.index)}", text="Last Column")
+
+		self.sheet.pack()
+
+		self.refreshSheetData()
+
+		''' </ Loading the tree widget /> '''
+
+	def refreshSheetData(self, findFilter='all'):
+		self.sheet.delete(*self.sheet.get_children())
+
+		if findFilter == 'all':
+			data = self.database.findData(all=True, mode='tuple')
+		else:
+			filterColumn, filterValue = findFilter
+			data = self.database.findData(targetColumn=filterColumn, targetValue=filterValue, mode='tuple')
+
+		#for item in data:
+		#	self.sheet.insert("", "end", values=item[:2])  # Insert row1 and row2 values
+		#	self.sheet.insert(self.sheet.get_children()[-1], "end", values=item[2:])  # Insert data1 and data2 values as children of the previous row
+
+		for item in data:
+			self.sheet.insert("", "end", values=item)
+
+		self.data = data
+
+	def runUI(self):
+		self.window.mainloop()
