@@ -14,6 +14,11 @@ myDatabase = Database('data.csv', index=('id', 'name', 'password'), separator='_
 1o3NYZIh8Kd_$_David_$_YoullNeverGuess
 ```
 
+To initialise the data, you can use `refreshData()` function, llike so:
+```python
+myDatabase.refreshData()
+```
+
 ### Adding Data:
 
 ##### ID's
@@ -86,3 +91,7 @@ for id, name, passowrd in results:
 ```
 
 (it comes down to preference)
+
+### Changing Data:
+
+### Deleting Data:

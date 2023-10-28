@@ -165,6 +165,110 @@ class Database(object):
 		else:
 			raise Exception('ID not found')
 
+class TreeviewEdit(ttk.Treeview):
+	def __init__(self, master, index, database, **kw):
+		super().__init__(master, **kw)
+
+		self.master = master
+
+		self.index = index
+		self.database = database
+
+		self.bind("<Double-1>", self.onDoubleClick)
+
+	def onDoubleClick(self, event):
+		
+		# Identifying the region clicked 
+		regionClicked = self.identify_region(x=event.x, y=event.y)
+
+		# Blocking unwanted region clicks, We're only intrested in cels (values) and trees
+		if regionClicked not in ("tree", "cell"):
+			return
+
+		# For example the first row will be #0, then #1, ect.
+		column = self.identify_column(x=event.x)
+		columnIndex = int(column[1:]) - 1 # The index of this column to its corosponding value
+
+		# For example 001
+		selected_iid = self.focus() # Y value
+
+		# Gets the values of the tree using the column and selected iid
+		selectedValues = self.item(selected_iid)['values']
+		selectedValue = selectedValues[columnIndex]
+
+		# This will get the column border of the double clicked cell or tree
+		columnBox = self.bbox(selected_iid, column)
+
+		# This will create a new widget event
+		entryEditWidget = ttk.Entry(self.master, width=columnBox[2])
+	
+		# Saving the values so they can be reused in the onEnterPressed() function to adress the cell
+		entryEditWidget.editing_column_index = columnIndex
+		entryEditWidget.editing_item_iid = selected_iid
+
+		# This puts the existing data in the text field
+		entryEditWidget.insert(0, selectedValue)
+		entryEditWidget.select_range(0, tkinter.END)
+		
+		# Sets the focus on this widget
+		entryEditWidget.focus()
+
+		# This is responcible for user action handling
+		entryEditWidget.bind("<FocusOut>", self.onFocusOut)
+		entryEditWidget.bind("<Return>", self.onEnterPressed)
+
+		# Sets the borders of the text widget
+		entryEditWidget.place(x=columnBox[0], y=columnBox[1]-5, w=columnBox[2]+10, h=columnBox[3]+10)
+		#entryEditWidget.place(x=columnBox[0], y=columnBox[1], w=columnBox[2], h=columnBox[3])
+
+	def onEnterPressed(self, event):
+
+		# Gets the newly returned value
+		newValue = event.widget.get()
+
+		# Collects data saved in variables fron the onDoubleClick() function
+		selected_iid = event.widget.editing_item_iid # Such as I002
+		columnIndex = event.widget.editing_column_index	# Such as 0
+
+		# Gets all the unedited values
+		currentValues = self.item(selected_iid)['values']
+
+		# Gets the column thats been selected
+		changedColumn = self.index[columnIndex]
+
+		# Gets the id from the edited entry
+		entryDbID = dict(zip(self.index, tuple(currentValues)))['id']
+
+		# Updates the file
+		self.database.chData(entryDbID, targetRow=changedColumn, newValue=newValue)
+
+		# Updates the tree
+		self.refreshSheetData()
+
+		# Cleanes up the edit widget
+		event.widget.destroy()
+
+	def refreshSheetData(self, findFilter='all'):
+		
+		# Deletes the existing data
+		self.delete(*self.get_children())
+
+		# Gets new data using the database class
+		if findFilter == 'all':
+			data = self.database.findData(all=True, mode='tuple')
+		else:
+			filterColumn, filterValue = findFilter
+			data = self.database.findData(targetColumn=filterColumn, targetValue=filterValue, mode='tuple')
+
+		# Inputs raw data into tree
+		for item in data:
+			self.insert("", "end", values=item)
+
+	def onFocusOut(self, event):
+
+		# Destroys the event if the focus is lost (clicked away)
+		event.widget.destroy()
+
 class TkinterInterface(object):
 	def __init__(self, databaseTitle, index, database):
 
@@ -175,24 +279,26 @@ class TkinterInterface(object):
 
 		self.window = tkinter.Tk()
 		self.window.title(databaseTitle)
-		SCREEN_WIDTH = self.window.winfo_screenwidth()
-		SCREEN_HEIGHT = self.window.winfo_screenheight()
-		self.window.geometry(f"{round(SCREEN_WIDTH/1.5)}x{round(SCREEN_HEIGHT/2)}")
-
+		#SCREEN_WIDTH = self.window.winfo_screenwidth()
+		#SCREEN_HEIGHT = self.window.winfo_screenheight()
+		#self.window.geometry(f"{round(SCREEN_WIDTH/1.5)}x{round(SCREEN_HEIGHT/2)}")
+		self.window.geometry("600x300")
 		# Database innit
 		self.database = database
 		self.database.refreshData()
 
 		''' < Loading the tree widget > '''
 
-		self.sheet = ttk.Treeview(self.window, columns=formattedIndex, show="headings", selectmode="extended", name="dataTreeview")
+		self.sheet = TreeviewEdit(master=self.window, index=self.index, database=self.database, columns=formattedIndex, show="headings", selectmode="extended", name="dataTreeview")
 
 		for columnNum, column in enumerate(formattedIndex):
 			self.sheet.heading(f"#{columnNum+1}", text=column)
 
 		#self.sheet.heading(f"#{len(self.index)}", text="Last Column")
 
+		#self.sheet.bind('<ButtonRelease-1 >', self.selectItem)
 		self.sheet.pack()
+
 
 		self.refreshSheetData()
 
@@ -215,6 +321,10 @@ class TkinterInterface(object):
 			self.sheet.insert("", "end", values=item)
 
 		self.data = data
+
+	#def selectItem(self, a):
+	#	curItem = self.sheet.focus()
+	#	print(self.sheet.item(curItem))
 
 	def runUI(self):
 		self.window.mainloop()
