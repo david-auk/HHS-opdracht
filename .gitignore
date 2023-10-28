@@ -157,6 +157,7 @@ cython_debug/
 
 # Debug/Test files
 templateApp.py
+tasks.md
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
