@@ -165,6 +165,44 @@ class Database(object):
 		else:
 			raise Exception('ID not found')
 
+class TreeviewEdit(ttk.Treeview):
+	def __init__(self, master, **kw):
+		super().__init__(master, **kw)
+
+		self.master = master
+
+		self.bind("<Double-1>", self.onDoubleClick)
+
+	def onDoubleClick(self, event):
+		
+		# Identifying the region clicked 
+		regionClicked = self.identify_region(x=event.x, y=event.y)
+
+		# Blocking unwanted region clicks, We're only intrested in cels (values) and trees
+		if regionClicked not in ("tree", "cell"):
+			return
+
+		# For example the first row will be #0, then #1, ect.
+		column = self.identify_column(x=event.x)
+		columnIndex = int(column[1:]) - 1 # The index of this column to its corosponding value
+
+		# For example 001
+		selected_iid = self.focus() # Y value
+
+		# Gets the values of the tree using the column and selected iid
+		selectedValues = self.item(selected_iid)['values']
+		selectedValue = selectedValues[columnIndex]
+
+		# This will get the column border of the double clicked cell or tree
+		columnBox = self.bbox(selected_iid, column)
+
+		print()
+
+		entryEditWidget = ttk.Entry(self.master, width=(columnBox[2] + self.master.winfo_screenwidth()))
+		entryEditWidget.place(x=columnBox[0], y=columnBox[1], w=columnBox[2], h=columnBox[3])
+
+		#print(column, selected_iid)
+
 class TkinterInterface(object):
 	def __init__(self, databaseTitle, index, database):
 
@@ -185,14 +223,16 @@ class TkinterInterface(object):
 
 		''' < Loading the tree widget > '''
 
-		self.sheet = ttk.Treeview(self.window, columns=formattedIndex, show="headings", selectmode="extended", name="dataTreeview")
+		self.sheet = TreeviewEdit(self.window, columns=formattedIndex, show="headings", selectmode="extended", name="dataTreeview")
 
 		for columnNum, column in enumerate(formattedIndex):
 			self.sheet.heading(f"#{columnNum+1}", text=column)
 
 		#self.sheet.heading(f"#{len(self.index)}", text="Last Column")
 
+		#self.sheet.bind('<ButtonRelease-1 >', self.selectItem)
 		self.sheet.pack()
+
 
 		self.refreshSheetData()
 
@@ -215,6 +255,10 @@ class TkinterInterface(object):
 			self.sheet.insert("", "end", values=item)
 
 		self.data = data
+
+	#def selectItem(self, a):
+	#	curItem = self.sheet.focus()
+	#	print(self.sheet.item(curItem))
 
 	def runUI(self):
 		self.window.mainloop()
