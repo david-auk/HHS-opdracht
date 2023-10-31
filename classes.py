@@ -182,6 +182,8 @@ class TreeviewEdit(ttk.Treeview):
 		self.bind("<ButtonRelease-1>", self.onSingleClick)
 		self.bind("<Double-1>", self.onDoubleClick)
 
+		self.refreshSheetData()
+
 	def onSingleClick(self, event):
 		regionClicked = self.identify_region(x=event.x, y=event.y)
 		
@@ -274,9 +276,12 @@ class TreeviewEdit(ttk.Treeview):
 		entryEditWidget.bind("<FocusOut>", self.onFocusOut)
 		entryEditWidget.bind("<Return>", self.onEnterPressed)
 
+		# Configuring the pixel penalty for a resized window
+		xAxisTableScreenWidthTax = (self.master.winfo_width() - 600) / 2
+
 		# Sets the borders of the text widget
-		entryEditWidget.place(x=columnBox[0], y=columnBox[1]-5, w=columnBox[2]+10, h=columnBox[3]+10)
-		#entryEditWidget.place(x=columnBox[0], y=columnBox[1], w=columnBox[2], h=columnBox[3])
+		#entryEditWidget.place(x=columnBox[0]+xAxisTableScreenWidthTax, y=columnBox[1]-5, w=columnBox[2]+5, h=columnBox[3]+10)
+		entryEditWidget.place(x=columnBox[0]+xAxisTableScreenWidthTax, y=columnBox[1]-3, w=columnBox[2]+5, h=columnBox[3]+6)
 
 	def onEnterPressed(self, event):
 
@@ -363,29 +368,10 @@ class TkinterInterface(object):
 		for columnNum, column in enumerate(formattedIndex):
 			self.sheet.heading(f"#{columnNum+1}", text=column)
 
-		#self.sheet.heading(f"#{len(self.index)}", text="Last Column")
-
-		#self.sheet.bind('<ButtonRelease-1 >', self.selectItem)
+		#self.sheet.pack(fill="x")
 		self.sheet.pack()
 
-
-		self.refreshSheetData()
-
 		''' </ Loading the tree widget /> '''
-
-	def refreshSheetData(self, findFilter='all'):
-		self.sheet.delete(*self.sheet.get_children())
-
-		if findFilter == 'all':
-			data = self.database.findData(all=True, mode='tuple')
-		else:
-			filterColumn, filterValue = findFilter
-			data = self.database.findData(targetColumn=filterColumn, targetValue=filterValue, mode='tuple')
-
-		for item in data:
-			self.sheet.insert("", "end", values=item)
-
-		self.data = data
 
 	#def selectItem(self, a):
 	#	curItem = self.sheet.focus()
