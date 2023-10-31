@@ -174,7 +174,66 @@ class TreeviewEdit(ttk.Treeview):
 		self.index = index
 		self.database = database
 
+		self.columnFilterdIndex = None
+		self.columnFilterdTypeIndex = 0 # 0: None, 1: Alphabetical/numeral, 2: reversed.
+		#self.tag_configure(f"{item_id}_{column}", background=color)
+
+
+		self.bind("<ButtonRelease-1>", self.onSingleClick)
 		self.bind("<Double-1>", self.onDoubleClick)
+
+		self.refreshSheetData()
+
+	def onSingleClick(self, event):
+		regionClicked = self.identify_region(x=event.x, y=event.y)
+		
+		if regionClicked not in ("heading"):
+			return
+
+		# Getting clicked Header info
+		headingClicked = self.identify_column(x=event.x)
+		headingClickedIndex = int(headingClicked[1:]) - 1
+
+		# The column header that will be filterd
+		oldColumnFilterdIndex = self.columnFilterdIndex
+		self.columnFilterdIndex = headingClickedIndex
+		
+		# Check if a new header is clicked whilst filtering
+		if oldColumnFilterdIndex != self.columnFilterdIndex and self.columnFilterdTypeIndex != 0:
+			
+			# Cleaning up old filter arrows
+			for column in self["columns"]:
+				self.heading(column, text=f'{column}')
+
+			# Resetting the modes ensuring a clean start
+			self.columnFilterdTypeIndex = 0
+
+		# Cycling modes per click
+		self.columnFilterdTypeIndex += 1
+
+		# Resetting cycle
+		if self.columnFilterdTypeIndex == 3:
+			self.columnFilterdTypeIndex = 0
+
+		# Setting the header filter indicator
+		if self.columnFilterdTypeIndex == 0:
+
+			# Clear sort indicators from all columns
+			for column in self["columns"]:
+				self.heading(column, text=f'{column}')
+
+		else:
+			if self.columnFilterdTypeIndex == 1:
+				char = '▼'
+			elif self.columnFilterdTypeIndex == 2:
+				char = '▲'
+			
+			# Set a triangle indicator next to the selected column's header
+			headerName = self["columns"][headingClickedIndex]
+			self.heading(headerName, text=f'{headerName} {char}')
+
+		# Sorting/resetting
+		self.refreshSheetData()
 
 	def onDoubleClick(self, event):
 		
@@ -217,9 +276,12 @@ class TreeviewEdit(ttk.Treeview):
 		entryEditWidget.bind("<FocusOut>", self.onFocusOut)
 		entryEditWidget.bind("<Return>", self.onEnterPressed)
 
+		# Configuring the pixel penalty for a resized window
+		xAxisTableScreenWidthTax = (self.master.winfo_width() - 600) / 2
+
 		# Sets the borders of the text widget
-		entryEditWidget.place(x=columnBox[0], y=columnBox[1]-5, w=columnBox[2]+10, h=columnBox[3]+10)
-		#entryEditWidget.place(x=columnBox[0], y=columnBox[1], w=columnBox[2], h=columnBox[3])
+		#entryEditWidget.place(x=columnBox[0]+xAxisTableScreenWidthTax, y=columnBox[1]-5, w=columnBox[2]+5, h=columnBox[3]+10)
+		entryEditWidget.place(x=columnBox[0]+xAxisTableScreenWidthTax, y=columnBox[1]-3, w=columnBox[2]+5, h=columnBox[3]+6)
 
 	def onEnterPressed(self, event):
 
@@ -260,6 +322,18 @@ class TreeviewEdit(ttk.Treeview):
 			filterColumn, filterValue = findFilter
 			data = self.database.findData(targetColumn=filterColumn, targetValue=filterValue, mode='tuple')
 
+		sortingValues = {
+			0: None,    # No sort at all (None for reverse means no sorting)
+			1: False,   # Standard sort
+			2: True     # Reversed sort
+		}
+
+		sortType = sortingValues[self.columnFilterdTypeIndex]
+
+		# Sorting the data
+		if sortType != None:
+			data = sorted(data, key=lambda item: item[self.columnFilterdIndex], reverse=sortType)
+
 		# Inputs raw data into tree
 		for item in data:
 			self.insert("", "end", values=item)
@@ -294,33 +368,10 @@ class TkinterInterface(object):
 		for columnNum, column in enumerate(formattedIndex):
 			self.sheet.heading(f"#{columnNum+1}", text=column)
 
-		#self.sheet.heading(f"#{len(self.index)}", text="Last Column")
-
-		#self.sheet.bind('<ButtonRelease-1 >', self.selectItem)
+		#self.sheet.pack(fill="x")
 		self.sheet.pack()
 
-
-		self.refreshSheetData()
-
 		''' </ Loading the tree widget /> '''
-
-	def refreshSheetData(self, findFilter='all'):
-		self.sheet.delete(*self.sheet.get_children())
-
-		if findFilter == 'all':
-			data = self.database.findData(all=True, mode='tuple')
-		else:
-			filterColumn, filterValue = findFilter
-			data = self.database.findData(targetColumn=filterColumn, targetValue=filterValue, mode='tuple')
-
-		#for item in data:
-		#	self.sheet.insert("", "end", values=item[:2])  # Insert row1 and row2 values
-		#	self.sheet.insert(self.sheet.get_children()[-1], "end", values=item[2:])  # Insert data1 and data2 values as children of the previous row
-
-		for item in data:
-			self.sheet.insert("", "end", values=item)
-
-		self.data = data
 
 	#def selectItem(self, a):
 	#	curItem = self.sheet.focus()
