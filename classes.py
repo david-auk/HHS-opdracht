@@ -165,26 +165,28 @@ class Database(object):
 		else:
 			raise Exception('ID not found')
 
-class TreeviewEdit(ttk.Treeview):
-	def __init__(self, master, index, database, **kw):
+class BetterTreeview(ttk.Treeview):
+	def __init__(self, master, index, database, padySpacing, **kw):
 		super().__init__(master, **kw)
 
 		self.master = master
 
 		self.index = index
 		self.database = database
+		self.padySpacing = padySpacing
 
 		self.columnFilterdIndex = None
 		self.columnFilterdTypeIndex = 0 # 0: None, 1: Alphabetical/numeral, 2: reversed.
-		#self.tag_configure(f"{item_id}_{column}", background=color)
 
+		self.findFilter = None
 
-		self.bind("<ButtonRelease-1>", self.onSingleClick)
+		self.bind("<ButtonRelease-1>", self.onSingleLeftClick)
+		self.bind("<ButtonRelease-2>", self.onRightClick)
 		self.bind("<Double-1>", self.onDoubleClick)
 
 		self.refreshSheetData()
 
-	def onSingleClick(self, event):
+	def onSingleLeftClick(self, event):
 		regionClicked = self.identify_region(x=event.x, y=event.y)
 		
 		if regionClicked not in ("heading"):
@@ -233,7 +235,61 @@ class TreeviewEdit(ttk.Treeview):
 			self.heading(headerName, text=f'{headerName} {char}')
 
 		# Sorting/resetting
-		self.refreshSheetData()
+		self.refreshSheetData(findFilter=self.findFilter)
+
+	def onRightClick(self, event):
+
+		# Identifying the region clicked 
+		regionClicked = self.identify_region(x=event.x, y=event.y)
+
+		# Blocking unwanted region clicks, We're only intrested in cels (values) and trees
+		if regionClicked not in ("cell"):
+			return
+
+		selectedRows = self.selection()
+		rightClickedRow = self.identify_row(event.y)
+
+		if not rightClickedRow in selectedRows:
+			self.selection_set(rightClickedRow)	
+			self.focus(rightClickedRow)
+			selectedRows = (rightClickedRow,)
+
+		selectedRowsAmount = len(self.selection())
+
+		def refreshButton(self):
+			self.refreshRawData()
+			self.refreshSheetData(findFilter=self.findFilter)
+
+		def deleteButton(self, selectedRows):
+			# Gets the values of the tree using the column and selected iid
+			for row in selectedRows:
+				selectedValues = self.item(row)['values']
+				entryDbID = dict(zip(self.index, tuple(selectedValues)))['id']
+
+				self.database.delData(entryDbID)
+
+			self.refreshRawData()
+			self.refreshSheetData(findFilter=self.findFilter)
+			self.showMessage(message=f"{self.database.filename} Updated", colour='green', time=3000)
+
+		rightMouseMenu = tkinter.Menu(self.master, tearoff=False)
+		rightMouseMenu.add_command(label="Refresh", command=lambda: refreshButton(self))
+		if selectedRowsAmount == 1:
+			rightMouseMenu.add_command(label="Delete Row", command=lambda: deleteButton(self, selectedRows))
+		else:
+			rightMouseMenu.add_command(label=f"Delete Rows ({selectedRowsAmount})", command=lambda: deleteButton(self, selectedRows))
+
+		# Configuring the pixel penalty for a resized window
+		if self.master.winfo_width() < 605:
+			xAxisTableScreenWidthTax = 8
+		else:
+			xAxisTableScreenWidthTax = int((self.master.winfo_width() - 605) / 2)
+
+		self.update_idletasks()
+
+#		self.selection_set(rightClickedRow)
+		rightMouseMenu.tk_popup(x=event.x + xAxisTableScreenWidthTax + 5, y=event.y + self.padySpacing+10)
+		#self.selection_set(rightClickedRow)
 
 	def onDoubleClick(self, event):
 		
@@ -275,13 +331,17 @@ class TreeviewEdit(ttk.Treeview):
 		# This is responcible for user action handling
 		entryEditWidget.bind("<FocusOut>", self.onFocusOut)
 		entryEditWidget.bind("<Return>", self.onEnterPressed)
+		entryEditWidget.bind("<Escape>", self.onEscapeOut)
 
 		# Configuring the pixel penalty for a resized window
-		xAxisTableScreenWidthTax = (self.master.winfo_width() - 600) / 2
+		if self.master.winfo_width() < 605:
+			xAxisTableScreenWidthTax = 8
+		else:
+			xAxisTableScreenWidthTax = (self.master.winfo_width() - 605) / 2
 
 		# Sets the borders of the text widget
 		#entryEditWidget.place(x=columnBox[0]+xAxisTableScreenWidthTax, y=columnBox[1]-5, w=columnBox[2]+5, h=columnBox[3]+10)
-		entryEditWidget.place(x=columnBox[0]+xAxisTableScreenWidthTax, y=columnBox[1]-3, w=columnBox[2]+5, h=columnBox[3]+6)
+		entryEditWidget.place(x=columnBox[0] + xAxisTableScreenWidthTax - 7, y=columnBox[1] - 1 + self.padySpacing, w=columnBox[2], h=columnBox[3]+6)
 
 	def onEnterPressed(self, event):
 
@@ -305,18 +365,25 @@ class TreeviewEdit(ttk.Treeview):
 		self.database.chData(entryDbID, targetRow=changedColumn, newValue=newValue)
 
 		# Updates the tree
-		self.refreshSheetData()
+		self.refreshSheetData(findFilter=self.findFilter)
 
 		# Cleanes up the edit widget
 		event.widget.destroy()
 
-	def refreshSheetData(self, findFilter='all'):
+		# Giving message
+		#self.show_message(message=f"{self.database.filename}: '{entryDbID}' Updated", colour='green', time=3000)
+		self.showMessage(message=f"{self.database.filename} Updated", colour='green', time=3000)
+
+	def refreshRawData(self):
+		self.database.refreshData()
+
+	def refreshSheetData(self, findFilter=None):
 		
 		# Deletes the existing data
 		self.delete(*self.get_children())
 
 		# Gets new data using the database class
-		if findFilter == 'all':
+		if findFilter == None:
 			data = self.database.findData(all=True, mode='tuple')
 		else:
 			filterColumn, filterValue = findFilter
@@ -338,12 +405,133 @@ class TreeviewEdit(ttk.Treeview):
 		for item in data:
 			self.insert("", "end", values=item)
 
+	def updateFilter(self, findFilter):
+		self.findFilter = findFilter
+
+	def showMessage(self, message, colour, time):
+		label = tkinter.Label(self.master, text=f"ⓘ {message}", background=colour, foreground="white")
+		label.pack(pady=10)
+		label.after(time, label.destroy)
+
 	def onFocusOut(self, event):
 
 		# Destroys the event if the focus is lost (clicked away)
 		event.widget.destroy()
 
+	def onEscapeOut(self, event):
+
+		# Destroys the event if escaped
+		event.widget.destroy()
+
+class BetterButtonActions(object):
+	def __init__(self, master, index, treeView, database):
+
+		self.master = master
+		self.treeView = treeView
+		self.database = database
+		self.index = index
+
+		# Open menus
+		self.findMenuOpen = False
+
+		self.findFilter = None
+		self.clearFilterButton = False
+
+	def refresh(self): # posible rightclick?
+		self.treeView.refreshRawData()
+		self.treeView.refreshSheetData(findFilter=self.findFilter)
+
+	def find(self):
+
+		if self.findMenuOpen:
+			self.showMessage(message='Close the Finder', colour='red', time=3000)
+			return
+
+		if self.clearFilterButton:
+			self.clearFilterButton.destroy()
+
+		mainContainer = tkinter.Frame(self.master, highlightbackground="gray", highlightthickness=2)
+		mainContainer.pack(pady=20)
+
+		# Create a tkinter StringVar to hold the selected dropdown option
+		selected_option = tkinter.StringVar(self.master)
+		options = self.index
+		selected_option.set(options[0])  # Set the default option
+
+		# Create a label and dropdown menu for the first input
+		option_label = tkinter.Label(self.master, text="Find all Data where:")
+		option_label.grid(in_=mainContainer,column=0, row=0)
+		option_dropdown = tkinter.OptionMenu(self.master, selected_option, *options)
+		option_dropdown.grid(in_=mainContainer,column=1, row=0)
+
+		# Create a label and text input for the second input
+		text_label = tkinter.Label(self.master, text="Has Value:")
+		text_label.grid(in_=mainContainer,column=3, row=0)
+		#help(tkinter.Entry)
+		text_entry = tkinter.Entry(self.master, width=10)
+
+		text_entry.grid(in_=mainContainer,column=1, row=1)
+		text_entry.focus()
+
+		# Function to close the window and return the selected values
+		def submit(event):
+			selectedColumn = selected_option.get()
+			selectedValue = text_entry.get()
+			mainContainer.destroy()  # Close the window
+
+			if selectedValue:
+				self.findFilter = (selectedColumn, selectedValue)
+				self.treeView.updateFilter(findFilter=self.findFilter)
+				self.treeView.refreshSheetData(findFilter=self.findFilter)
+				self.clearFilterButton = tkinter.Button(self.master, text="Clear Filters", padx=5, pady=5, command=clearFilter)
+				self.clearFilterButton.pack(pady=10)
+				text_entry.destroy()
+			else:
+				self.findFilter = None
+				
+			
+			
+			self.findMenuOpen = False
+
+
+		def clearFilter():
+			
+			self.findFilter = None
+
+			self.treeView.updateFilter(findFilter=self.findFilter)
+			self.treeView.refreshSheetData(findFilter=self.findFilter)
+
+			self.clearFilterButton.destroy()			
+
+		find_button = tkinter.Button(self.master, text="Find", command=lambda: submit(None))
+		text_entry.bind("<Return>", submit)
+		find_button.grid(in_=mainContainer, row=2, column=1, columnspan=1)
+
+		self.findMenuOpen = True
+
+	def add(self): # posible rightclick? (on nothing)
+
+		return
+
+		self.database.addData(newData=('Value1', 'Value2', 'Value3'))
+		self.sheet.refreshSheetData(findFilter=self.findFilter)
+
+	def remove(self): # posible rightclick? (on nothing)
+
+		return
+
+		self.database.addData(newData=('Value1', 'Value2', 'Value3'))
+		self.sheet.refreshSheetData(findFilter=self.findFilter)
+
+	def showMessage(self, message, colour, time):
+		
+		label = tkinter.Label(self.master, text=f"ⓘ {message}", background=colour, foreground="white")
+		label.pack(pady=10)
+		label.after(time, label.destroy)
+
+
 class TkinterInterface(object):
+	
 	def __init__(self, databaseTitle, index, database):
 
 		self.databaseTitle = databaseTitle
@@ -353,29 +541,57 @@ class TkinterInterface(object):
 
 		self.window = tkinter.Tk()
 		self.window.title(databaseTitle)
-		#SCREEN_WIDTH = self.window.winfo_screenwidth()
-		#SCREEN_HEIGHT = self.window.winfo_screenheight()
-		#self.window.geometry(f"{round(SCREEN_WIDTH/1.5)}x{round(SCREEN_HEIGHT/2)}")
-		self.window.geometry("600x300")
+		SCREEN_WIDTH = self.window.winfo_screenwidth()
+		SCREEN_HEIGHT = self.window.winfo_screenheight()
+		self.window.geometry(f"{round(SCREEN_WIDTH/1.5)}x{round(SCREEN_HEIGHT/2)}")
+
 		# Database innit
 		self.database = database
 		self.database.refreshData()
 
 		''' < Loading the tree widget > '''
 
-		self.sheet = TreeviewEdit(master=self.window, index=self.index, database=self.database, columns=formattedIndex, show="headings", selectmode="extended", name="dataTreeview")
+		# Configure frame
+		padySpacing = 20
+		treeFrame = tkinter.Frame(self.window, highlightbackground="gray", highlightthickness=2)
+		treeFrame.pack(pady=padySpacing)
+
+		# Configure scroll wheel
+		treeScroll = tkinter.Scrollbar(treeFrame)
+		treeScroll.pack(side='right', fill='y')
+
+		self.sheet = BetterTreeview(master=self.window, index=self.index, database=self.database, columns=formattedIndex, padySpacing=padySpacing, show="headings", selectmode="extended", name="dataTreeview", yscrollcommand=treeScroll.set)
 
 		for columnNum, column in enumerate(formattedIndex):
 			self.sheet.heading(f"#{columnNum+1}", text=column)
 
-		#self.sheet.pack(fill="x")
-		self.sheet.pack()
+		self.sheet.pack(in_=treeFrame)
+
+		# Making the scroll bar movable by drag
+		treeScroll.config(command=self.sheet.yview)
 
 		''' </ Loading the tree widget /> '''
 
-	#def selectItem(self, a):
-	#	curItem = self.sheet.focus()
-	#	print(self.sheet.item(curItem))
+		''' < Loading the button widget(s) > '''
+
+		buttonFunctions = BetterButtonActions(master=self.window, index=self.index, treeView=self.sheet, database=self.database)
+
+		buttonContainer = tkinter.LabelFrame(self.window)
+		buttonContainer.pack()
+
+
+		refreshButton = tkinter.Button(self.window, text='↻', padx=10, pady=10, command=buttonFunctions.refresh)
+		refreshButton.grid(in_=buttonContainer, column=0, row=0)
+
+		findButton = tkinter.Button(self.window, text='Search', padx=10, pady=10, command=buttonFunctions.find)
+		findButton.grid(in_=buttonContainer, column=1, row=0)
+
+		spacing = tkinter.Label(self.window, text = '')
+		spacing.grid(in_=buttonContainer, column=2, row=0)
+
+		additionButton = tkinter.Button(self.window, text='+', padx=10, pady=10, command=lambda: buttonFunctions.add(newData="test"))
+		additionButton.grid(in_=buttonContainer, column=3, row=0)
+		
 
 	def runUI(self):
 		self.window.mainloop()
