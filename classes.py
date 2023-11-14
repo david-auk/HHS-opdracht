@@ -433,7 +433,7 @@ class BetterButtonActions(object):
 		self.index = index
 
 		# Open menus
-		self.findMenuOpen = False
+		self.userMenuOpen = False
 
 		self.findFilter = None
 		self.findColumn = None
@@ -447,8 +447,8 @@ class BetterButtonActions(object):
 
 	def find(self):
 
-		if self.findMenuOpen:
-			self.showMessage(message='Close the Finder', colour='red', time=3000)
+		if self.userMenuOpen:
+			self.showMessage(message='Close the Field', colour='red', time=3000)
 			return
 
 		if self.clearFilterButton:
@@ -475,7 +475,6 @@ class BetterButtonActions(object):
 		# Create a label and text input for the second input
 		text_label = tkinter.Label(self.master, text="Has Value:")
 		text_label.grid(in_=mainContainer,column=3, row=0)
-		#help(tkinter.Entry)
 		text_entry = tkinter.Entry(self.master, width=10)
 
 		if self.findValue:
@@ -501,16 +500,13 @@ class BetterButtonActions(object):
 			else:
 				self.findFilter = None
 				
-			
-			
-			self.findMenuOpen = False
-
+			self.userMenuOpen = False
 
 		def clearFilter():
 			
 			self.findFilter = None
 			self.findValue = None
-			self.findColumn = None
+			#self.findColumn = None
 
 			self.treeView.updateFilter(findFilter=self.findFilter)
 			self.treeView.refreshSheetData(findFilter=self.findFilter)
@@ -521,21 +517,69 @@ class BetterButtonActions(object):
 		text_entry.bind("<Return>", submit)
 		find_button.grid(in_=mainContainer, row=2, column=1, columnspan=1)
 
-		self.findMenuOpen = True
+		self.userMenuOpen = True
 
 	def add(self): # posible rightclick? (on nothing)
 
-		return
+		if self.userMenuOpen:
+			self.showMessage(message='Close the Field', colour='red', time=3000)
+			return
 
-		self.database.addData(newData=('Value1', 'Value2', 'Value3'))
-		self.sheet.refreshSheetData(findFilter=self.findFilter)
+		mainContainer = tkinter.Frame(self.master, highlightbackground="gray", highlightthickness=2)
+		mainContainer.pack(padx=10, pady=10)
 
-	def remove(self): # posible rightclick? (on nothing)
+		def submit(entry_widgets):
 
-		return
+			values = []
 
-		self.database.addData(newData=('Value1', 'Value2', 'Value3'))
-		self.sheet.refreshSheetData(findFilter=self.findFilter)
+			for entry in entry_widgets:
+
+				entryValue = entry.get()
+				if entryValue == '':
+
+					self.showMessage("Fill all Fields", colour='red', time=3000)
+					return
+					
+				else:
+					values.append(entryValue)
+
+			values = tuple(values)
+
+			self.database.addData(newData=values)
+			self.treeView.refreshSheetData(findFilter=self.findFilter)
+
+			self.showMessage(message=f"{self.database.filename} Updated", colour='green', time=3000)
+
+			mainContainer.destroy()
+			self.userMenuOpen = False
+
+		def cancel():
+			mainContainer.destroy()
+			self.userMenuOpen = False
+
+		entry_widgets = []
+
+		for field in self.index:
+			label = tkinter.Label(mainContainer, text=field.capitalize())
+			label.pack(in_=mainContainer)
+
+			entry = tkinter.Entry(mainContainer)
+
+			if field == 'id':
+				entry.insert(0, self.database.generateNewId())
+				entry.select_range(0, tkinter.END)
+
+			entry.pack()
+
+			entry_widgets.append(entry)
+
+		submitButton = tkinter.Button(mainContainer, text="Submit", command=lambda: submit(entry_widgets))
+		submitButton.pack(pady=10)
+
+		cancelButton = tkinter.Button(mainContainer, text="Cancel", command=cancel)
+		cancelButton.pack(pady=10)
+
+		self.userMenuOpen = True
 
 	def showMessage(self, message, colour, time):
 		
@@ -601,7 +645,7 @@ class TkinterInterface(object):
 		spacing = tkinter.Label(self.window, text = '')
 		spacing.grid(in_=buttonContainer, column=2, row=0)
 
-		additionButton = tkinter.Button(self.window, text='+', padx=10, pady=10, command=lambda: buttonFunctions.add(newData="test"))
+		additionButton = tkinter.Button(self.window, text='+', padx=10, pady=10, command=buttonFunctions.add)
 		additionButton.grid(in_=buttonContainer, column=3, row=0)
 		
 
