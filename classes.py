@@ -173,6 +173,9 @@ class BetterTreeview(ttk.Treeview):
 
 		self.index = index
 		self.database = database
+
+		self.treeTableSize = len(index) * 200 + 5
+
 		self.padySpacing = padySpacing
 
 		self.columnFilterdIndex = None
@@ -280,16 +283,13 @@ class BetterTreeview(ttk.Treeview):
 			rightMouseMenu.add_command(label=f"Delete Rows ({selectedRowsAmount})", command=lambda: deleteButton(self, selectedRows))
 
 		# Configuring the pixel penalty for a resized window
-		if self.master.winfo_width() < 605:
+		if self.master.winfo_width() < self.treeTableSize:
 			xAxisTableScreenWidthTax = 8
 		else:
-			xAxisTableScreenWidthTax = int((self.master.winfo_width() - 605) / 2)
+			xAxisTableScreenWidthTax = int((self.master.winfo_width() - self.treeTableSize) / 2)
 
 		self.update_idletasks()
-
-#		self.selection_set(rightClickedRow)
 		rightMouseMenu.tk_popup(x=event.x + xAxisTableScreenWidthTax + 5, y=event.y + self.padySpacing+10)
-		#self.selection_set(rightClickedRow)
 
 	def onDoubleClick(self, event):
 		
@@ -334,10 +334,11 @@ class BetterTreeview(ttk.Treeview):
 		entryEditWidget.bind("<Escape>", self.onEscapeOut)
 
 		# Configuring the pixel penalty for a resized window
-		if self.master.winfo_width() < 605:
+
+		if self.master.winfo_width() < self.treeTableSize:
 			xAxisTableScreenWidthTax = 8
 		else:
-			xAxisTableScreenWidthTax = (self.master.winfo_width() - 605) / 2
+			xAxisTableScreenWidthTax = (self.master.winfo_width() - self.treeTableSize) / 2
 
 		# Sets the borders of the text widget
 		#entryEditWidget.place(x=columnBox[0]+xAxisTableScreenWidthTax, y=columnBox[1]-5, w=columnBox[2]+5, h=columnBox[3]+10)
@@ -435,9 +436,12 @@ class BetterButtonActions(object):
 		self.findMenuOpen = False
 
 		self.findFilter = None
+		self.findColumn = None
+		self.findValue = None
+
 		self.clearFilterButton = False
 
-	def refresh(self): # posible rightclick?
+	def refresh(self):
 		self.treeView.refreshRawData()
 		self.treeView.refreshSheetData(findFilter=self.findFilter)
 
@@ -455,13 +459,17 @@ class BetterButtonActions(object):
 
 		# Create a tkinter StringVar to hold the selected dropdown option
 		selected_option = tkinter.StringVar(self.master)
-		options = self.index
-		selected_option.set(options[0])  # Set the default option
+
+		if self.findColumn == None:
+			selected_option.set(self.index[0])  # Set the default option
+		else:
+			selected_option.set(self.findColumn)
+
 
 		# Create a label and dropdown menu for the first input
 		option_label = tkinter.Label(self.master, text="Find all Data where:")
 		option_label.grid(in_=mainContainer,column=0, row=0)
-		option_dropdown = tkinter.OptionMenu(self.master, selected_option, *options)
+		option_dropdown = tkinter.OptionMenu(self.master, selected_option, *self.index)
 		option_dropdown.grid(in_=mainContainer,column=1, row=0)
 
 		# Create a label and text input for the second input
@@ -470,17 +478,21 @@ class BetterButtonActions(object):
 		#help(tkinter.Entry)
 		text_entry = tkinter.Entry(self.master, width=10)
 
+		if self.findValue:
+			text_entry.insert(0, self.findValue)
+
 		text_entry.grid(in_=mainContainer,column=1, row=1)
 		text_entry.focus()
 
 		# Function to close the window and return the selected values
 		def submit(event):
-			selectedColumn = selected_option.get()
-			selectedValue = text_entry.get()
+			findColumn = selected_option.get()
+			self.findColumn = selected_option.get()
+			self.findValue = text_entry.get()
 			mainContainer.destroy()  # Close the window
 
-			if selectedValue:
-				self.findFilter = (selectedColumn, selectedValue)
+			if self.findValue:
+				self.findFilter = (self.findColumn, self.findValue)
 				self.treeView.updateFilter(findFilter=self.findFilter)
 				self.treeView.refreshSheetData(findFilter=self.findFilter)
 				self.clearFilterButton = tkinter.Button(self.master, text="Clear Filters", padx=5, pady=5, command=clearFilter)
@@ -497,6 +509,8 @@ class BetterButtonActions(object):
 		def clearFilter():
 			
 			self.findFilter = None
+			self.findValue = None
+			self.findColumn = None
 
 			self.treeView.updateFilter(findFilter=self.findFilter)
 			self.treeView.refreshSheetData(findFilter=self.findFilter)
@@ -528,7 +542,6 @@ class BetterButtonActions(object):
 		label = tkinter.Label(self.master, text=f"ⓘ {message}", background=colour, foreground="white")
 		label.pack(pady=10)
 		label.after(time, label.destroy)
-
 
 class TkinterInterface(object):
 	
@@ -578,7 +591,6 @@ class TkinterInterface(object):
 
 		buttonContainer = tkinter.LabelFrame(self.window)
 		buttonContainer.pack()
-
 
 		refreshButton = tkinter.Button(self.window, text='↻', padx=10, pady=10, command=buttonFunctions.refresh)
 		refreshButton.grid(in_=buttonContainer, column=0, row=0)
