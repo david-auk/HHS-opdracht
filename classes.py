@@ -1,5 +1,6 @@
 import random
 import string
+import os.path
 import tkinter
 from tkinter import ttk
 
@@ -7,6 +8,10 @@ class Database(object):
 	"""docstring for Database"""
 	def __init__(self, filename, index, separator=','):
 		self.filename = filename
+
+		if not os.path.isfile(self.filename):
+			raise Exception(f'File {self.filename} doesnt exist or cant be found.')
+
 		self.index = index
 		self.data = None
 
@@ -35,7 +40,7 @@ class Database(object):
 
 	def findData(self, targetColumn=None, targetValue=None, mode='dictionary', all=False):
 		if self.data is None:
-			print("Data has not been loaded. Call refreshData() first.")
+			raise Exception("Data has not been loaded. Call refreshData() first.")
 			return None
 
 		if all == True:
@@ -92,15 +97,19 @@ class Database(object):
 			raise Exception(f"id \"{newDataFormatted['id']}\" already in use in {self.filename}")
 
 		# Writing to the data file
+
 		with open(self.filename, mode='a') as dataFile:
-			dataFile.write(f'\n{self.separator.join(tuple(newDataFormatted.values()))}')
+			if not bool(self.data): # If the file is empty
+				dataFile.write(f'{self.separator.join(tuple(newDataFormatted.values()))}') # Place at firstline
+			else:
+				dataFile.write(f'\n{self.separator.join(tuple(newDataFormatted.values()))}') # Place at last line (with a newline before for formatting)
 
 		self.refreshData()
 
 	def chData(self, targetId, targetRow, newValue):
 		# Because the data is accessesed directly. it must make shure that the data is loaded, findData() does this for you
 		if self.data is None:
-			print("Data has not been loaded. Call refreshData() first.")
+			raise Exception("Data has not been loaded. Call refreshData() first.")
 			return None
 
 		idFound = False
@@ -136,7 +145,7 @@ class Database(object):
 		
 		# Because the data is accessesed directly. it must make shure that the data is loaded, findData() does this for you
 		if self.data is None:
-			print("Data has not been loaded. Call refreshData() first.")
+			raise Exception("Data has not been loaded. Call refreshData() first.")
 			return None
 
 		idFound = False
@@ -153,8 +162,9 @@ class Database(object):
 				# Remove the line at the specified line number (index - 1)
 				del lines[rowToDelete - 1]
 
-				# Remove trailing newline
-				lines[-1] = lines[-1].rstrip()
+				if bool(lines): # If it isn't the last line
+					# Remove trailing newline
+					lines[-1] = lines[-1].rstrip()
 				
 				# Write the modified content back to the file
 				with open(self.filename, 'w') as dataFile:
@@ -273,7 +283,7 @@ class BetterTreeview(ttk.Treeview):
 
 			self.refreshRawData()
 			self.refreshSheetData(findFilter=self.findFilter)
-			self.showMessage(message=f"{self.database.filename} Updated", colour='green', time=3000)
+			self.showMessage(message=f"{self.database.filename.split('/')[-1]} Updated", colour='green', time=3000)
 
 		rightMouseMenu = tkinter.Menu(self.master, tearoff=False)
 		rightMouseMenu.add_command(label="Refresh", command=lambda: refreshButton(self))
@@ -372,8 +382,7 @@ class BetterTreeview(ttk.Treeview):
 		event.widget.destroy()
 
 		# Giving message
-		#self.show_message(message=f"{self.database.filename}: '{entryDbID}' Updated", colour='green', time=3000)
-		self.showMessage(message=f"{self.database.filename} Updated", colour='green', time=3000)
+		self.showMessage(message=f"{self.database.filename.split('/')[-1]} Updated", colour='green', time=3000)
 
 	def refreshRawData(self):
 		self.database.refreshData()
@@ -548,7 +557,7 @@ class BetterButtonActions(object):
 			self.database.addData(newData=values)
 			self.treeView.refreshSheetData(findFilter=self.findFilter)
 
-			self.showMessage(message=f"{self.database.filename} Updated", colour='green', time=3000)
+			self.showMessage(message=f"{self.database.filename.split('/')[-1]} Updated", colour='green', time=3000)
 
 			mainContainer.destroy()
 			self.userMenuOpen = False
