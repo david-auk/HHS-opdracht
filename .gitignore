@@ -153,7 +153,7 @@ dmypy.json
 cython_debug/
 
 # Data files
-*.csv
+#*.csv
 
 # Debug/Test files
 templateApp.py

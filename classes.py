@@ -1,5 +1,6 @@
 import random
 import string
+import os.path
 import tkinter
 from tkinter import ttk
 
@@ -7,6 +8,10 @@ class Database(object):
 	"""docstring for Database"""
 	def __init__(self, filename, index, separator=','):
 		self.filename = filename
+
+		if not os.path.isfile(self.filename):
+			raise Exception(f'File {self.filename} doesnt exist or cant be found.')
+
 		self.index = index
 		self.data = None
 
@@ -35,7 +40,7 @@ class Database(object):
 
 	def findData(self, targetColumn=None, targetValue=None, mode='dictionary', all=False):
 		if self.data is None:
-			print("Data has not been loaded. Call refreshData() first.")
+			raise Exception("Data has not been loaded. Call refreshData() first.")
 			return None
 
 		if all == True:
@@ -92,15 +97,19 @@ class Database(object):
 			raise Exception(f"id \"{newDataFormatted['id']}\" already in use in {self.filename}")
 
 		# Writing to the data file
+
 		with open(self.filename, mode='a') as dataFile:
-			dataFile.write(f'\n{self.separator.join(tuple(newDataFormatted.values()))}')
+			if not bool(self.data): # If the file is empty
+				dataFile.write(f'{self.separator.join(tuple(newDataFormatted.values()))}') # Place at firstline
+			else:
+				dataFile.write(f'\n{self.separator.join(tuple(newDataFormatted.values()))}') # Place at last line (with a newline before for formatting)
 
 		self.refreshData()
 
 	def chData(self, targetId, targetRow, newValue):
 		# Because the data is accessesed directly. it must make shure that the data is loaded, findData() does this for you
 		if self.data is None:
-			print("Data has not been loaded. Call refreshData() first.")
+			raise Exception("Data has not been loaded. Call refreshData() first.")
 			return None
 
 		idFound = False
@@ -136,7 +145,7 @@ class Database(object):
 		
 		# Because the data is accessesed directly. it must make shure that the data is loaded, findData() does this for you
 		if self.data is None:
-			print("Data has not been loaded. Call refreshData() first.")
+			raise Exception("Data has not been loaded. Call refreshData() first.")
 			return None
 
 		idFound = False
@@ -153,8 +162,9 @@ class Database(object):
 				# Remove the line at the specified line number (index - 1)
 				del lines[rowToDelete - 1]
 
-				# Remove trailing newline
-				lines[-1] = lines[-1].rstrip()
+				if bool(lines): # If it isn't the last line
+					# Remove trailing newline
+					lines[-1] = lines[-1].rstrip()
 				
 				# Write the modified content back to the file
 				with open(self.filename, 'w') as dataFile:
@@ -173,6 +183,9 @@ class BetterTreeview(ttk.Treeview):
 
 		self.index = index
 		self.database = database
+
+		self.treeTableSize = len(index) * 200 + 5
+
 		self.padySpacing = padySpacing
 
 		self.columnFilterdIndex = None
@@ -270,7 +283,7 @@ class BetterTreeview(ttk.Treeview):
 
 			self.refreshRawData()
 			self.refreshSheetData(findFilter=self.findFilter)
-			self.showMessage(message=f"{self.database.filename} Updated", colour='green', time=3000)
+			self.showMessage(message=f"{self.database.filename.split('/')[-1]} Updated", colour='green', time=3000)
 
 		rightMouseMenu = tkinter.Menu(self.master, tearoff=False)
 		rightMouseMenu.add_command(label="Refresh", command=lambda: refreshButton(self))
@@ -279,17 +292,8 @@ class BetterTreeview(ttk.Treeview):
 		else:
 			rightMouseMenu.add_command(label=f"Delete Rows ({selectedRowsAmount})", command=lambda: deleteButton(self, selectedRows))
 
-		# Configuring the pixel penalty for a resized window
-		if self.master.winfo_width() < 605:
-			xAxisTableScreenWidthTax = 8
-		else:
-			xAxisTableScreenWidthTax = int((self.master.winfo_width() - 605) / 2)
-
 		self.update_idletasks()
-
-#		self.selection_set(rightClickedRow)
-		rightMouseMenu.tk_popup(x=event.x + xAxisTableScreenWidthTax + 5, y=event.y + self.padySpacing+10)
-		#self.selection_set(rightClickedRow)
+		rightMouseMenu.tk_popup(x=self.master.winfo_pointerx(), y=self.master.winfo_pointery())
 
 	def onDoubleClick(self, event):
 		
@@ -334,10 +338,11 @@ class BetterTreeview(ttk.Treeview):
 		entryEditWidget.bind("<Escape>", self.onEscapeOut)
 
 		# Configuring the pixel penalty for a resized window
-		if self.master.winfo_width() < 605:
+
+		if self.master.winfo_width() < self.treeTableSize:
 			xAxisTableScreenWidthTax = 8
 		else:
-			xAxisTableScreenWidthTax = (self.master.winfo_width() - 605) / 2
+			xAxisTableScreenWidthTax = (self.master.winfo_width() - self.treeTableSize) / 2
 
 		# Sets the borders of the text widget
 		#entryEditWidget.place(x=columnBox[0]+xAxisTableScreenWidthTax, y=columnBox[1]-5, w=columnBox[2]+5, h=columnBox[3]+10)
@@ -371,8 +376,7 @@ class BetterTreeview(ttk.Treeview):
 		event.widget.destroy()
 
 		# Giving message
-		#self.show_message(message=f"{self.database.filename}: '{entryDbID}' Updated", colour='green', time=3000)
-		self.showMessage(message=f"{self.database.filename} Updated", colour='green', time=3000)
+		self.showMessage(message=f"{self.database.filename.split('/')[-1]} Updated", colour='green', time=3000)
 
 	def refreshRawData(self):
 		self.database.refreshData()
@@ -432,19 +436,22 @@ class BetterButtonActions(object):
 		self.index = index
 
 		# Open menus
-		self.findMenuOpen = False
+		self.userMenuOpen = False
 
 		self.findFilter = None
+		self.findColumn = None
+		self.findValue = None
+
 		self.clearFilterButton = False
 
-	def refresh(self): # posible rightclick?
+	def refresh(self):
 		self.treeView.refreshRawData()
 		self.treeView.refreshSheetData(findFilter=self.findFilter)
 
 	def find(self):
 
-		if self.findMenuOpen:
-			self.showMessage(message='Close the Finder', colour='red', time=3000)
+		if self.userMenuOpen:
+			self.showMessage(message='Close the Field', colour='red', time=3000)
 			return
 
 		if self.clearFilterButton:
@@ -455,32 +462,39 @@ class BetterButtonActions(object):
 
 		# Create a tkinter StringVar to hold the selected dropdown option
 		selected_option = tkinter.StringVar(self.master)
-		options = self.index
-		selected_option.set(options[0])  # Set the default option
+
+		if self.findColumn == None:
+			selected_option.set(self.index[0])  # Set the default option
+		else:
+			selected_option.set(self.findColumn)
+
 
 		# Create a label and dropdown menu for the first input
 		option_label = tkinter.Label(self.master, text="Find all Data where:")
 		option_label.grid(in_=mainContainer,column=0, row=0)
-		option_dropdown = tkinter.OptionMenu(self.master, selected_option, *options)
+		option_dropdown = tkinter.OptionMenu(self.master, selected_option, *self.index)
 		option_dropdown.grid(in_=mainContainer,column=1, row=0)
 
 		# Create a label and text input for the second input
 		text_label = tkinter.Label(self.master, text="Has Value:")
 		text_label.grid(in_=mainContainer,column=3, row=0)
-		#help(tkinter.Entry)
 		text_entry = tkinter.Entry(self.master, width=10)
+
+		if self.findValue:
+			text_entry.insert(0, self.findValue)
 
 		text_entry.grid(in_=mainContainer,column=1, row=1)
 		text_entry.focus()
 
 		# Function to close the window and return the selected values
 		def submit(event):
-			selectedColumn = selected_option.get()
-			selectedValue = text_entry.get()
+			findColumn = selected_option.get()
+			self.findColumn = selected_option.get()
+			self.findValue = text_entry.get()
 			mainContainer.destroy()  # Close the window
 
-			if selectedValue:
-				self.findFilter = (selectedColumn, selectedValue)
+			if self.findValue:
+				self.findFilter = (self.findColumn, self.findValue)
 				self.treeView.updateFilter(findFilter=self.findFilter)
 				self.treeView.refreshSheetData(findFilter=self.findFilter)
 				self.clearFilterButton = tkinter.Button(self.master, text="Clear Filters", padx=5, pady=5, command=clearFilter)
@@ -489,14 +503,13 @@ class BetterButtonActions(object):
 			else:
 				self.findFilter = None
 				
-			
-			
-			self.findMenuOpen = False
-
+			self.userMenuOpen = False
 
 		def clearFilter():
 			
 			self.findFilter = None
+			self.findValue = None
+			#self.findColumn = None
 
 			self.treeView.updateFilter(findFilter=self.findFilter)
 			self.treeView.refreshSheetData(findFilter=self.findFilter)
@@ -507,28 +520,75 @@ class BetterButtonActions(object):
 		text_entry.bind("<Return>", submit)
 		find_button.grid(in_=mainContainer, row=2, column=1, columnspan=1)
 
-		self.findMenuOpen = True
+		self.userMenuOpen = True
 
 	def add(self): # posible rightclick? (on nothing)
 
-		return
+		if self.userMenuOpen:
+			self.showMessage(message='Close the Field', colour='red', time=3000)
+			return
 
-		self.database.addData(newData=('Value1', 'Value2', 'Value3'))
-		self.sheet.refreshSheetData(findFilter=self.findFilter)
+		mainContainer = tkinter.Frame(self.master, highlightbackground="gray", highlightthickness=2)
+		mainContainer.pack(padx=10, pady=10)
 
-	def remove(self): # posible rightclick? (on nothing)
+		def submit(entry_widgets):
 
-		return
+			values = []
 
-		self.database.addData(newData=('Value1', 'Value2', 'Value3'))
-		self.sheet.refreshSheetData(findFilter=self.findFilter)
+			for entry in entry_widgets:
+
+				entryValue = entry.get()
+				if entryValue == '':
+
+					self.showMessage("Fill all Fields", colour='red', time=3000)
+					return
+					
+				else:
+					values.append(entryValue)
+
+			values = tuple(values)
+
+			self.database.addData(newData=values)
+			self.treeView.refreshSheetData(findFilter=self.findFilter)
+
+			self.showMessage(message=f"{self.database.filename.split('/')[-1]} Updated", colour='green', time=3000)
+
+			mainContainer.destroy()
+			self.userMenuOpen = False
+
+		def cancel():
+			mainContainer.destroy()
+			self.userMenuOpen = False
+
+		entry_widgets = []
+
+		for field in self.index:
+			label = tkinter.Label(mainContainer, text=field.capitalize())
+			label.pack(in_=mainContainer)
+
+			entry = tkinter.Entry(mainContainer)
+
+			if field == 'id':
+				entry.insert(0, self.database.generateNewId())
+				entry.select_range(0, tkinter.END)
+
+			entry.pack()
+
+			entry_widgets.append(entry)
+
+		submitButton = tkinter.Button(mainContainer, text="Submit", command=lambda: submit(entry_widgets))
+		submitButton.pack(pady=10)
+
+		cancelButton = tkinter.Button(mainContainer, text="Cancel", command=cancel)
+		cancelButton.pack(pady=10)
+
+		self.userMenuOpen = True
 
 	def showMessage(self, message, colour, time):
 		
 		label = tkinter.Label(self.master, text=f"ⓘ {message}", background=colour, foreground="white")
 		label.pack(pady=10)
 		label.after(time, label.destroy)
-
 
 class TkinterInterface(object):
 	
@@ -579,7 +639,6 @@ class TkinterInterface(object):
 		buttonContainer = tkinter.LabelFrame(self.window)
 		buttonContainer.pack()
 
-
 		refreshButton = tkinter.Button(self.window, text='↻', padx=10, pady=10, command=buttonFunctions.refresh)
 		refreshButton.grid(in_=buttonContainer, column=0, row=0)
 
@@ -589,7 +648,7 @@ class TkinterInterface(object):
 		spacing = tkinter.Label(self.window, text = '')
 		spacing.grid(in_=buttonContainer, column=2, row=0)
 
-		additionButton = tkinter.Button(self.window, text='+', padx=10, pady=10, command=lambda: buttonFunctions.add(newData="test"))
+		additionButton = tkinter.Button(self.window, text='+', padx=10, pady=10, command=buttonFunctions.add)
 		additionButton.grid(in_=buttonContainer, column=3, row=0)
 		
 
