@@ -292,14 +292,8 @@ class BetterTreeview(ttk.Treeview):
 		else:
 			rightMouseMenu.add_command(label=f"Delete Rows ({selectedRowsAmount})", command=lambda: deleteButton(self, selectedRows))
 
-		# Configuring the pixel penalty for a resized window
-		if self.master.winfo_width() < self.treeTableSize:
-			xAxisTableScreenWidthTax = 8
-		else:
-			xAxisTableScreenWidthTax = int((self.master.winfo_width() - self.treeTableSize) / 2)
-
 		self.update_idletasks()
-		rightMouseMenu.tk_popup(x=event.x + xAxisTableScreenWidthTax + 5, y=event.y + self.padySpacing+10)
+		rightMouseMenu.tk_popup(x=self.master.winfo_pointerx(), y=self.master.winfo_pointery())
 
 	def onDoubleClick(self, event):
 		
