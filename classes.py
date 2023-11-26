@@ -427,6 +427,44 @@ class BetterTreeview(ttk.Treeview):
 		# Destroys the event if escaped
 		event.widget.destroy()
 
+class BetterFrame(ttk.Frame):
+	def __init__(self, parent, *args, **kw):
+		ttk.Frame.__init__(self, parent, *args, **kw)
+
+		# Create a canvas object and a vertical scrollbar for scrolling it.
+		vscrollbar = ttk.Scrollbar(self, orient='vertical')
+		vscrollbar.pack(fill='y', side='right', expand='false')
+		canvas = tkinter.Canvas(self, bd=0, highlightthickness=0,
+						   yscrollcommand=vscrollbar.set)
+		canvas.pack(side='left', fill='both', expand='true')
+		vscrollbar.config(command=canvas.yview)
+
+		# Reset the view
+		canvas.xview_moveto(0)
+		canvas.yview_moveto(0)
+
+		# Create a frame inside the canvas which will be scrolled with it.
+		self.interior = interior = ttk.Frame(canvas)
+		interior_id = canvas.create_window(0, 0, window=interior,
+										   anchor='nw')
+
+		# Track changes to the canvas and frame width and sync them,
+		# also updating the scrollbar.
+		def _configure_interior(event):
+			# Update the scrollbars to match the size of the inner frame.
+			size = (interior.winfo_reqwidth(), interior.winfo_reqheight())
+			canvas.config(scrollregion="0 0 %s %s" % size)
+			if interior.winfo_reqwidth() != canvas.winfo_width():
+				# Update the canvas's width to fit the inner frame.
+				canvas.config(width=interior.winfo_reqwidth())
+		interior.bind('<Configure>', _configure_interior)
+
+		def _configure_canvas(event):
+			if interior.winfo_reqwidth() != canvas.winfo_width():
+				# Update the inner frame's width to fill the canvas.
+				canvas.itemconfigure(interior_id, width=canvas.winfo_width())
+		canvas.bind('<Configure>', _configure_canvas)
+
 class BetterButtonActions(object):
 	def __init__(self, master, index, treeView, database):
 
@@ -458,6 +496,7 @@ class BetterButtonActions(object):
 			self.clearFilterButton.destroy()
 
 		mainContainer = tkinter.Frame(self.master, highlightbackground="gray", highlightthickness=2)
+		#mainContainer = BetterFrame(self.master)
 		mainContainer.pack(pady=20)
 
 		# Create a tkinter StringVar to hold the selected dropdown option
@@ -528,7 +567,8 @@ class BetterButtonActions(object):
 			self.showMessage(message='Close the Field', colour='red', time=3000)
 			return
 
-		mainContainer = tkinter.Frame(self.master, highlightbackground="gray", highlightthickness=2)
+		mainContainer = BetterFrame(self.master)
+		#mainContainer = tkinter.Frame(self.master, highlightbackground="gray", highlightthickness=2)
 		mainContainer.pack(padx=10, pady=10)
 
 		def submit(entry_widgets):
@@ -563,10 +603,10 @@ class BetterButtonActions(object):
 		entry_widgets = []
 
 		for field in self.index:
-			label = tkinter.Label(mainContainer, text=field.capitalize())
-			label.pack(in_=mainContainer)
+			label = tkinter.Label(mainContainer.interior, text=field.capitalize())
+			label.pack() # (in_=mainContainer)
 
-			entry = tkinter.Entry(mainContainer)
+			entry = tkinter.Entry(mainContainer.interior)
 
 			if field == 'id':
 				entry.insert(0, self.database.generateNewId())
@@ -576,10 +616,10 @@ class BetterButtonActions(object):
 
 			entry_widgets.append(entry)
 
-		submitButton = tkinter.Button(mainContainer, text="Submit", command=lambda: submit(entry_widgets))
+		submitButton = tkinter.Button(mainContainer.interior, text="Submit", command=lambda: submit(entry_widgets))
 		submitButton.pack(pady=10)
 
-		cancelButton = tkinter.Button(mainContainer, text="Cancel", command=cancel)
+		cancelButton = tkinter.Button(mainContainer.interior, text="Cancel", command=cancel)
 		cancelButton.pack(pady=10)
 
 		self.userMenuOpen = True
